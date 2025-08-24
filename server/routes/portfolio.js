@@ -1,6 +1,5 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
-import upload from '../middleware/upload.js';
 import { restrictTo } from '../middleware/roleMiddleware.js';
 import { 
   createPortfolioItem, 
@@ -11,6 +10,8 @@ import {
   getPortfolioCategories,
   updatePortfolioItem 
 } from '../controllers/portfolio.js';
+import { upload } from '../config/portfolioUpload.js';
+import { handleUploadErrors } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -24,14 +25,16 @@ router.get('/:id', getPortfolioItem);
 router.post('/', 
   protect, 
   restrictTo('admin'), 
-  upload.array('images', 10), // Increased limit to 10 images
+  upload.array('images', 10), // Up to 10 images
+  handleUploadErrors,
   createPortfolioItem
 );
 
 router.patch('/:id', 
   protect, 
   restrictTo('admin'), 
-  upload.array('images', 10), // Increased limit to 10 images
+  upload.array('images', 10), // Up to 10 images
+  handleUploadErrors,
   updatePortfolioItem
 );
 

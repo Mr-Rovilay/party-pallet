@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
 
+const imageSchema = new mongoose.Schema({
+  publicId: { type: String, required: true },
+  url: { type: String, required: true },
+  width: { type: Number, required: true },
+  height: { type: Number, required: true },
+  caption: { type: String, default: "" }
+}, { _id: false }); // Disable _id for subdocuments
+
 const portfolioSchema = new mongoose.Schema(
   {
     title: { 
@@ -21,13 +29,7 @@ const portfolioSchema = new mongoose.Schema(
       ],
       default: "Other",
     },
-    images: [{ 
-      publicId: String, 
-      url: String, 
-      width: Number, 
-      height: Number,
-      caption: String // Added caption for each image
-    }],
+    images: [imageSchema], // Use the separate schema
     description: { 
       type: String, 
       maxlength: 1000,
@@ -43,12 +45,12 @@ const portfolioSchema = new mongoose.Schema(
       maxlength: 100,
       trim: true
     },
-    tags: [String], // Added tags for better categorization
+    tags: [String],
     isPublished: { 
       type: Boolean, 
       default: true 
     },
-    viewCount: { // Added view count for popularity tracking
+    viewCount: {
       type: Number,
       default: 0
     }

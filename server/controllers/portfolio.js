@@ -21,15 +21,19 @@ export const createPortfolioItem = asyncHandler(async (req, res) => {
       message: 'At least one image is required' 
     });
   }
+
   
   // Process images
-  const images = req.files.map(file => ({
-    publicId: file.public_id,
-    url: file.secure_url,
-    width: file.width,
-    height: file.height,
-    caption: '' // Default empty caption
-  }));
+  const images = req.files.map(file => {
+    
+    return {
+      publicId: file.public_id || file.filename,
+      url: file.secure_url || file.path,
+      width: file.width || 0,
+      height: file.height || 0,
+      caption: '' // Default empty caption
+    };
+  });
   
   // Create portfolio item
   const portfolio = new Portfolio({
@@ -162,6 +166,7 @@ export const updatePortfolioItem = asyncHandler(async (req, res) => {
   
   // Handle new images if uploaded
   if (req.files && req.files.length > 0) {
+    
     // Delete old images from Cloudinary
     for (const image of portfolio.images) {
       try {
@@ -173,10 +178,10 @@ export const updatePortfolioItem = asyncHandler(async (req, res) => {
     
     // Add new images
     portfolio.images = req.files.map(file => ({
-      publicId: file.public_id,
-      url: file.secure_url,
-      width: file.width,
-      height: file.height,
+      publicId: file.public_id || file.filename,
+      url: file.secure_url || file.path,
+      width: file.width || 0,
+      height: file.height || 0,
       caption: ''
     }));
   }
