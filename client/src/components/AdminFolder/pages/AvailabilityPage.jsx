@@ -1,131 +1,140 @@
-import { useState, useEffect } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { motion } from 'framer-motion'
-import Calendar from 'react-calendar'
-import 'react-calendar/dist/Calendar.css'
-import { toast } from 'sonner'
-import moment from 'moment'
-import { Clock, Plus, Trash2, AlertCircle, CheckCircle } from 'lucide-react'
-import { blockSlot, deleteAvailability, getAvailability, setAvailability } from '@/redux/slice/availabilitySlice'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Switch } from '@/components/ui/switch'
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { motion } from 'framer-motion';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
+import { toast } from 'sonner';
+import moment from 'moment';
+import { Clock, Plus, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { blockSlot, deleteAvailability, getAvailability, setAvailability } from '@/redux/slice/availabilitySlice';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
 
 const AvailabilityPage = () => {
-  const dispatch = useDispatch()
-  const { availability, status, error } = useSelector((state) => state.availability)
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [isAvailable, setIsAvailable] = useState(true)
-  const [slots, setSlots] = useState([])
-  const [newSlot, setNewSlot] = useState({ start: '', end: '', note: '' })
+  const dispatch = useDispatch();
+  const { availability, status, error } = useSelector((state) => state.availability);
+  
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [slots, setSlots] = useState([]);
+  const [newSlot, setNewSlot] = useState({ start: '', end: '', note: '' });
 
   useEffect(() => {
     // Fetch availability for the selected date's month
-    const startDate = moment(selectedDate).startOf('month').format('YYYY-MM-DD')
-    const endDate = moment(selectedDate).endOf('month').format('YYYY-MM-DD')
-    dispatch(getAvailability({ startDate, endDate }))
-  }, [dispatch, selectedDate])
+    const startDate = moment(selectedDate).startOf('month').format('YYYY-MM-DD');
+    const endDate = moment(selectedDate).endOf('month').format('YYYY-MM-DD');
+    dispatch(getAvailability({ startDate, endDate }));
+  }, [dispatch, selectedDate]);
 
   useEffect(() => {
     // Update form when selected date changes
-    const selectedAvailability = availability.find(item => 
-      moment(item.date).isSame(moment(selectedDate), 'day')
-    )
-    setIsAvailable(selectedAvailability ? selectedAvailability.isAvailable : true)
-    setSlots(selectedAvailability?.slots || [])
-  }, [selectedDate, availability])
+    // Normalize both dates to the same timezone for comparison
+    const normalizedSelectedDate = moment(selectedDate).startOf('day');
+    
+    const selectedAvailability = availability.find(item => {
+      const itemDate = moment(item.date).startOf('day');
+      return itemDate.isSame(normalizedSelectedDate);
+    });
+    
+    setIsAvailable(selectedAvailability ? selectedAvailability.isAvailable : true);
+    setSlots(selectedAvailability?.slots || []);
+  }, [selectedDate, availability]);
 
   const handleDateChange = (date) => {
-    setSelectedDate(date)
-  }
+    setSelectedDate(date);
+  };
 
   const handleAvailabilityToggle = () => {
-    const date = moment(selectedDate).format('YYYY-MM-DD')
+    const date = moment(selectedDate).format('YYYY-MM-DD');
     if (moment(selectedDate).isBefore(moment(), 'day')) {
-      toast.error('Cannot set availability for past dates')
-      return
+      toast.error('Cannot set availability for past dates');
+      return;
     }
-    const newAvailability = !isAvailable
+    
+    const newAvailability = !isAvailable;
     dispatch(setAvailability({ date, isAvailable: newAvailability }))
       .unwrap()
       .then(() => {
-        setIsAvailable(newAvailability)
-        toast.success(`Date marked as ${newAvailability ? 'available' : 'unavailable'}`)
+        setIsAvailable(newAvailability);
+        toast.success(`Date marked as ${newAvailability ? 'available' : 'unavailable'}`);
       })
       .catch((err) => {
-        toast.error(err.message || 'Failed to update availability')
-        console.error(err)
-      })
-  }
+        toast.error(err.message || 'Failed to update availability');
+        console.error(err);
+      });
+  };
 
   const handleAddSlot = (e) => {
-    e.preventDefault()
-    const { start, end, note } = newSlot
-    const date = moment(selectedDate).format('YYYY-MM-DD')
-
+    e.preventDefault();
+    const { start, end, note } = newSlot;
+    const date = moment(selectedDate).format('YYYY-MM-DD');
+    
     if (moment(selectedDate).isBefore(moment(), 'day')) {
-      toast.error('Cannot add slots for past dates')
-      return
+      toast.error('Cannot add slots for past dates');
+      return;
     }
-
+    
     if (!start || !end) {
-      toast.error('Start and end times are required')
-      return
+      toast.error('Start and end times are required');
+      return;
     }
-
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+    
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(start) || !timeRegex.test(end)) {
-      toast.error('Time must be in HH:mm format')
-      return
+      toast.error('Time must be in HH:mm format');
+      return;
     }
-
-    const [startHours, startMinutes] = start.split(':').map(Number)
-    const [endHours, endMinutes] = end.split(':').map(Number)
-    const startTotal = startHours * 60 + startMinutes
-    const endTotal = endHours * 60 + endMinutes
-
+    
+    const [startHours, startMinutes] = start.split(':').map(Number);
+    const [endHours, endMinutes] = end.split(':').map(Number);
+    const startTotal = startHours * 60 + startMinutes;
+    const endTotal = endHours * 60 + endMinutes;
+    
     if (endTotal <= startTotal) {
-      toast.error('End time must be after start time')
-      return
+      toast.error('End time must be after start time');
+      return;
     }
-
+    
     const hasOverlap = slots.some(slot => {
-      const [slotStartHours, slotStartMinutes] = slot.start.split(':').map(Number)
-      const [slotEndHours, slotEndMinutes] = slot.end.split(':').map(Number)
-      const slotStartTotal = slotStartHours * 60 + slotStartMinutes
-      const slotEndTotal = slotEndHours * 60 + slotEndMinutes
-      return (startTotal < slotEndTotal && endTotal > slotStartTotal)
-    })
-
+      const [slotStartHours, slotStartMinutes] = slot.start.split(':').map(Number);
+      const [slotEndHours, slotEndMinutes] = slot.end.split(':').map(Number);
+      const slotStartTotal = slotStartHours * 60 + slotStartMinutes;
+      const slotEndTotal = slotEndHours * 60 + slotEndMinutes;
+      return (startTotal < slotEndTotal && endTotal > slotStartTotal);
+    });
+    
     if (hasOverlap) {
-      toast.error('Time slots must not overlap')
-      return
+      toast.error('Time slots must not overlap');
+      return;
     }
-
-    const updatedSlots = [...slots, { start, end, status: 'available', note }]
+    
+    const updatedSlots = [...slots, { start, end, status: 'available', note }];
     dispatch(setAvailability({ date, slots: updatedSlots }))
       .unwrap()
       .then(() => {
-        setSlots(updatedSlots)
-        setNewSlot({ start: '', end: '', note: '' })
-        toast.success('Time slot added successfully')
+        setSlots(updatedSlots);
+        setNewSlot({ start: '', end: '', note: '' });
+        toast.success('Time slot added successfully');
       })
       .catch((err) => {
-        toast.error(err.message || 'Failed to add time slot')
-        console.error(err)
-      })
-  }
+        toast.error(err.message || 'Failed to add time slot');
+        console.error(err);
+      });
+  };
 
   const handleBlockSlot = (slot) => {
-    const date = moment(selectedDate).format('YYYY-MM-DD')
+    const date = moment(selectedDate).format('YYYY-MM-DD');
+    
     if (moment(selectedDate).isBefore(moment(), 'day')) {
-      toast.error('Cannot block slots for past dates')
-      return
+      toast.error('Cannot block slots for past dates');
+      return;
     }
+    
     dispatch(blockSlot({ date, start: slot.start, end: slot.end, note: slot.note }))
       .unwrap()
       .then(() => {
@@ -133,65 +142,82 @@ const AvailabilityPage = () => {
           (s.start === slot.start && s.end === slot.end) 
             ? { ...s, status: 'blocked' } 
             : s
-        )
-        setSlots(updatedSlots)
-        toast.success('Time slot blocked successfully')
+        );
+        setSlots(updatedSlots);
+        toast.success('Time slot blocked successfully');
       })
       .catch((err) => {
-        toast.error(err.message || 'Failed to block time slot')
-        console.error(err)
-      })
-  }
+        toast.error(err.message || 'Failed to block time slot');
+        console.error(err);
+      });
+  };
 
   const handleDeleteAvailability = () => {
-    const date = moment(selectedDate).format('YYYY-MM-DD')
+    const date = moment(selectedDate).format('YYYY-MM-DD');
+    
     if (moment(selectedDate).isBefore(moment(), 'day')) {
-      toast.error('Cannot delete availability for past dates')
-      return
+      toast.error('Cannot delete availability for past dates');
+      return;
     }
+    
     dispatch(deleteAvailability(date))
       .unwrap()
       .then(() => {
-        setIsAvailable(true)
-        setSlots([])
-        toast.success('Availability deleted successfully')
+        setIsAvailable(true);
+        setSlots([]);
+        toast.success('Availability deleted successfully');
       })
       .catch((err) => {
-        toast.error(err.message || 'Failed to delete availability')
-        console.error(err)
-      })
-  }
+        toast.error(err.message || 'Failed to delete availability');
+        console.error(err);
+      });
+  };
 
   const tileClassName = ({ date, view }) => {
-    if (view !== 'month') return ''
-    const availabilityItem = availability.find(item => 
-      moment(item.date).isSame(moment(date), 'day')
-    )
+    if (view !== 'month') return '';
+    
+    // Normalize both dates to the same timezone for comparison
+    const normalizedDate = moment(date).startOf('day');
+    
     if (moment(date).isBefore(moment(), 'day')) {
-      return 'bg-muted text-muted-foreground opacity-50'
+      return 'bg-muted text-muted-foreground opacity-50';
     }
+    
+    const availabilityItem = availability.find(item => {
+      const itemDate = moment(item.date).startOf('day');
+      return itemDate.isSame(normalizedDate);
+    });
+    
     if (availabilityItem) {
       return availabilityItem.isAvailable 
-        ? 'bg-primary/20 border-primary text-primary'
-        : 'bg-destructive/20 border-destructive text-destructive'
+        ? 'bg-green-100 border-green-300 text-green-800' 
+        : 'bg-red-100 border-red-300 text-red-800';
     }
-    return 'bg-card border-border'
-  }
+    
+    return 'bg-card border-border';
+  };
 
   const tileContent = ({ date, view }) => {
-    if (view !== 'month') return null
-    const availabilityItem = availability.find(item => 
-      moment(item.date).isSame(moment(date), 'day')
-    )
+    if (view !== 'month') return null;
+    
+    // Normalize both dates to the same timezone for comparison
+    const normalizedDate = moment(date).startOf('day');
+    
+    const availabilityItem = availability.find(item => {
+      const itemDate = moment(item.date).startOf('day');
+      return itemDate.isSame(normalizedDate);
+    });
+    
     if (availabilityItem?.slots?.length > 0) {
       return (
         <div className="flex justify-center mt-1">
-          <div className="w-1 h-1 rounded-full bg-primary"></div>
+          <div className="w-1 h-1 rounded-full bg-brown-600"></div>
         </div>
-      )
+      );
     }
-    return null
-  }
+    
+    return null;
+  };
 
   return (
     <motion.div
@@ -218,6 +244,7 @@ const AvailabilityPage = () => {
               <h3 className="text-lg font-script text-card-foreground flex items-center gap-2">
                 Calendar View
               </h3>
+              
               <div className="bg-card p-4 rounded-lg border border-border">
                 <Calendar
                   onChange={handleDateChange}
@@ -230,6 +257,7 @@ const AvailabilityPage = () => {
                   minDate={new Date()}
                 />
               </div>
+              
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg border border-border">
                 <div>
                   <p className="text-sm text-muted-foreground">Selected Date</p>
@@ -237,6 +265,7 @@ const AvailabilityPage = () => {
                     {moment(selectedDate).format('MMMM D, YYYY')}
                   </p>
                 </div>
+                
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -244,7 +273,7 @@ const AvailabilityPage = () => {
                         checked={isAvailable}
                         onCheckedChange={handleAvailabilityToggle}
                         disabled={status === 'loading' || moment(selectedDate).isBefore(moment(), 'day')}
-                        className="bg-primary"
+                        className="data-[state=checked]:bg-gold"
                       />
                     </TooltipTrigger>
                     <TooltipContent className="bg-card text-card-foreground border-border">
@@ -261,6 +290,7 @@ const AvailabilityPage = () => {
                 <Clock className="text-primary" size={20} />
                 Time Slots for {moment(selectedDate).format('MMMM D, YYYY')}
               </h3>
+              
               {moment(selectedDate).isBefore(moment(), 'day') ? (
                 <div className="text-center py-8 bg-muted rounded-lg border border-border">
                   <AlertCircle className="mx-auto text-destructive mb-2" size={32} />
@@ -298,6 +328,7 @@ const AvailabilityPage = () => {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
+                          
                           <div>
                             <Label htmlFor="end" className="text-card-foreground">End Time</Label>
                             <TooltipProvider>
@@ -317,6 +348,7 @@ const AvailabilityPage = () => {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
+                          
                           <div>
                             <Label htmlFor="note" className="text-card-foreground">Note (Optional)</Label>
                             <TooltipProvider>
@@ -338,9 +370,10 @@ const AvailabilityPage = () => {
                             </TooltipProvider>
                           </div>
                         </div>
+                        
                         <Button
                           type="submit"
-                          className="bg-primary hover:bg-sidebar-primary text-primary-foreground font-medium w-full"
+                          className="bg-gold hover:bg-gold/90 text-brown-900 font-medium w-full"
                           disabled={status === 'loading'}
                         >
                           {status === 'loading' ? 'Adding...' : 'Add Time Slot'}
@@ -464,13 +497,20 @@ const AvailabilityPage = () => {
               </Tooltip>
             </TooltipProvider>
           </div>
+          
           {status === 'failed' && (
-            <p className="text-destructive">{error?.message || 'Failed to load availability'}</p>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="text-red-500 mt-0.5" size={20} />
+              <div>
+                <p className="font-medium text-red-800">Error</p>
+                <p className="text-red-600">{error?.message || 'Failed to load availability'}</p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
     </motion.div>
-  )
-}
+  );
+};
 
-export default AvailabilityPage
+export default AvailabilityPage;

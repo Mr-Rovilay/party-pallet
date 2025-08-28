@@ -3,17 +3,19 @@ import authReducer from "./slice/authSlice";
 // import bookingReducer from "./slices/bookingSlice";
 import availabilityReducer from "./slice/availabilitySlice";
 // import testimonialReducer from "./slices/testimonialSlice";
-// import rentalReducer from "./slices/rentalSlice";
+import rentalReducer from "./slice/rentalSlice";
+import portfolioReducer from "./slice/portfolioSlice"
 // import paymentReducer from "./slices/paymentSlice";
 // import analyticsReducer from "./slices/analyticsSlice";
 
 export const Store = configureStore({
   reducer: {
     auth: authReducer,
+    portfolio: portfolioReducer,
     // bookings: bookingReducer,
     availability: availabilityReducer,
     // testimonials: testimonialReducer,
-    // rentals: rentalReducer,
+    rentals: rentalReducer,
     // payments: paymentReducer,
     // analytics: analyticsReducer,
   },

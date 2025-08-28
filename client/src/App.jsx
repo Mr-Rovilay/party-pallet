@@ -8,6 +8,9 @@ import { motion } from "framer-motion";
 import HomePage from "./components/pages/HomePage";
 import { useDispatch } from "react-redux";
 import { fetchCurrentUser } from "./redux/slice/authSlice";
+import PublicRentalsPage from "./components/pages/PublicRentalsPage";
+import PublicPortfolioPage from "./components/pages/PublicPortfolioPage";
+import PublicBookingPage from "./components/pages/PublicBookingPage";
 
 const App = () => {
    const dispatch = useDispatch();
@@ -27,6 +30,10 @@ const App = () => {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/rentals" element={<PublicRentalsPage />} />
+          <Route path="/portfolio" element={<PublicPortfolioPage />} />
+          <Route path="/booking" element={<PublicBookingPage />} />
+          <Route path="/portfolio/:id" element={<PublicPortfolioPage />} />
           <Route
             path="/admin/dashboard/*"
             element={
