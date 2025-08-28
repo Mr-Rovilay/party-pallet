@@ -38,6 +38,7 @@ const availabilitySchema = new mongoose.Schema({
       note: String,
     },
   ],
+    default: [] // ✅ ensure always an array
 }, { 
   timestamps: true,
   toJSON: {

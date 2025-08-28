@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { toast } from 'sonner'
-import api from '../../utils/server'
+import api from '@/utils/server'
 
 // Async thunks for payment operations
 export const initializePayment = createAsyncThunk(

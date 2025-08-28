@@ -1,35 +1,45 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useEffect } from "react";
+import AdminLogin from "./components/pages/AdminLogin";
+import { Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import AdminDashboard from "./components/AdminFolder/AdminDashboard";
+import ProtectedRoute from "./routes/ProtectedRoute";
+import { motion } from "framer-motion";
+import HomePage from "./components/pages/HomePage";
+import { useDispatch } from "react-redux";
+import { fetchCurrentUser } from "./redux/slice/authSlice";
 
-function App() {
-  const [count, setCount] = useState(0)
+const App = () => {
+   const dispatch = useDispatch();
 
+  useEffect(() => {
+    dispatch(fetchCurrentUser());
+  }, [dispatch]);
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <div className="min-h-screen flex flex-col">
+      {/* <Navbar /> */}
+      <motion.main
+        className="flex-grow"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route
+            path="/admin/dashboard/*"
+            element={
+              <ProtectedRoute role="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          >
+          </Route>
+        </Routes>
+      </motion.main>
+    </div>
+  );
+};
 
-export default App
+export default App;

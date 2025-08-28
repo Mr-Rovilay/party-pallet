@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { toast } from 'sonner'
-import api from '../../../utils/server'
+import api from '@/utils/server'
 
 // Async thunks for analytics operations
 export const getAnalytics = createAsyncThunk(
