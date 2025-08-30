@@ -20,7 +20,6 @@ const sendEmails = async (mailOptions) => {
     await Promise.all(mailOptions.map(option => transporter.sendMail(option)));
   } catch (error) {
     console.error('Email sending failed:', error);
-    // We don't throw here to avoid failing the main operation
   }
 };
 
@@ -28,34 +27,34 @@ const sendEmails = async (mailOptions) => {
 export const createBooking = asyncHandler(async (req, res) => {
   const session = await Booking.startSession();
   session.startTransaction();
-  
+
   try {
     const { client, event, pricing, notes } = req.body;
-    
+
     // Validate required fields
-    if (!client?.fullName || !client?.email || !client?.phone || 
-        !event?.type || !event?.date || !event?.startTime || !event?.endTime || 
+    if (!client?.fullName || !client?.email || !client?.phone ||
+        !event?.type || !event?.date || !event?.startTime || !event?.endTime ||
         !event?.location || !pricing?.estimate || !pricing?.depositRequired) {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'All required fields must be provided' 
+        message: 'All required fields must be provided'
       });
     }
-    
+
     // Check if event date is in the future
     if (moment(event.date).isBefore(moment().startOf('day'))) {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Event date must be in the future' 
+        message: 'Event date must be in the future'
       });
     }
-    
+
     // Check availability
     const eventDate = moment(event.date).startOf('day').toDate();
     let availability = await Availability.findOne({ date: eventDate }).session(session);
-    
+
     if (!availability) {
       availability = new Availability({
         date: eventDate,
@@ -63,15 +62,15 @@ export const createBooking = asyncHandler(async (req, res) => {
         slots: []
       });
     }
-    
+
     if (!availability.isAvailable) {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Selected date is unavailable' 
+        message: 'Selected date is unavailable'
       });
     }
-    
+
     // Check for overlapping bookings
     const existingBooking = await Booking.findOne({
       'event.date': eventDate,
@@ -97,15 +96,15 @@ export const createBooking = asyncHandler(async (req, res) => {
         }
       ]
     }).session(session);
-    
+
     if (existingBooking) {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Time slot conflicts with existing booking' 
+        message: 'Time slot conflicts with existing booking'
       });
     }
-    
+
     // Create booking
     const booking = new Booking({
       client,
@@ -116,15 +115,15 @@ export const createBooking = asyncHandler(async (req, res) => {
       pricing,
       notes,
     });
-    
+
     // Save booking
     await booking.save({ session });
-    
+
     // Update availability - mark the time slot as booked
     const slotExists = availability.slots.some(
       slot => slot.start === event.startTime && slot.end === event.endTime
     );
-    
+
     if (!slotExists) {
       availability.slots.push({
         start: event.startTime,
@@ -137,9 +136,9 @@ export const createBooking = asyncHandler(async (req, res) => {
       );
       availability.slots[slotIndex].status = 'booked';
     }
-    
+
     await availability.save({ session });
-    
+
     // Prepare email data
     const emailData = {
       clientName: client.fullName,
@@ -159,7 +158,7 @@ export const createBooking = asyncHandler(async (req, res) => {
       whatsappUrl: `https://wa.me/${process.env.WHATSAPP_NUMBER || '2348012345678'}`,
       baseUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
     };
-    
+
     // Prepare email options
     const clientMailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
@@ -167,23 +166,23 @@ export const createBooking = asyncHandler(async (req, res) => {
       subject: 'Party Pallet Booking Confirmation',
       html: getEmailTemplate('clientConfirmation', emailData)
     };
-    
+
     const adminMailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: process.env.EMAIL_USER,
       subject: 'New Booking Received - Party Pallet',
       html: getEmailTemplate('adminNotification', emailData)
     };
-    
+
     // Send emails asynchronously
     sendEmails([clientMailOptions, adminMailOptions]);
-    
+
     // Commit transaction
     await session.commitTransaction();
-    
-    res.status(201).json({ 
+
+    res.status(201).json({
       success: true,
-      message: 'Booking created successfully', 
+      message: 'Booking created successfully',
       booking: {
         ...booking.toObject(),
         event: {
@@ -195,10 +194,10 @@ export const createBooking = asyncHandler(async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error creating booking:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   } finally {
     session.endSession();
@@ -211,21 +210,20 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
   const status = req.query.status;
-  
-  // Build query
+
   let query = {};
   if (status) {
     query.status = status;
   }
-  
+
   const bookings = await Booking.find(query)
     .populate('payment')
     .sort({ 'event.date': 1 })
     .skip(skip)
     .limit(limit);
-  
+
   const total = await Booking.countDocuments(query);
-  
+
   res.status(200).json({
     success: true,
     bookings,
@@ -242,55 +240,50 @@ export const getAllBookings = asyncHandler(async (req, res) => {
 export const updateBookingStatus = asyncHandler(async (req, res) => {
   const session = await Booking.startSession();
   session.startTransaction();
-  
+
   try {
     const { id } = req.params;
     const { status, note } = req.body;
-    
+
     if (!['pending', 'deposit-paid', 'confirmed', 'completed', 'cancelled'].includes(status)) {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Invalid status' 
+        message: 'Invalid status'
       });
     }
-    
+
     const booking = await Booking.findById(id).session(session);
     if (!booking) {
       await session.abortTransaction();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Booking not found' 
+        message: 'Booking not found'
       });
     }
-    
-    // If cancelling, free up the availability slot
+
     if (status === 'cancelled' && booking.status !== 'cancelled') {
       const availability = await Availability.findOne({
         date: booking.event.date
       }).session(session);
-      
+
       if (availability) {
         const slotIndex = availability.slots.findIndex(
           slot => slot.start === booking.event.startTime && slot.end === booking.event.endTime
         );
-        
+
         if (slotIndex !== -1) {
           availability.slots[slotIndex].status = 'available';
           await availability.save({ session });
         }
       }
     }
-    
-    // Set metadata for status history
+
     booking._changedBy = req.user._id;
     booking._statusChangeNote = note || '';
-    
-    // Update status
     booking.status = status;
     await booking.save({ session });
-    
-    // Prepare email data
+
     const emailData = {
       clientName: booking.client.fullName,
       eventType: booking.event.type,
@@ -302,33 +295,30 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
       whatsappUrl: `https://wa.me/${process.env.WHATSAPP_NUMBER || '2348012345678'}`,
       baseUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
     };
-    
-    // Send status update email
+
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: booking.client.email,
       subject: 'Party Pallet Booking Update',
       html: getEmailTemplate('statusUpdate', emailData)
     };
-    
-    // Send email asynchronously
+
     sendEmails([mailOptions]);
-    
-    // Commit transaction
+
     await session.commitTransaction();
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
-      message: 'Booking updated successfully', 
-      booking 
+      message: 'Booking updated successfully',
+      booking
     });
   } catch (error) {
     await session.abortTransaction();
     console.error('Error updating booking status:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   } finally {
     session.endSession();
@@ -340,14 +330,14 @@ export const getBookingById = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id)
     .populate('testimonials')
     .populate('payment');
-  
+
   if (!booking) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       success: false,
-      message: "Booking not found" 
+      message: "Booking not found"
     });
   }
-  
+
   res.status(200).json({
     success: true,
     booking
@@ -361,29 +351,26 @@ export const getBookingPaymentDetails = asyncHandler(async (req, res) => {
       path: 'payment',
       select: 'reference amount status paymentDate currency'
     });
-  
+
   if (!booking) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       success: false,
-      message: "Booking not found" 
+      message: "Booking not found"
     });
   }
-  
-  // Calculate total paid (convert from kobo to Naira)
+
   const totalPaid = booking.payment.reduce((sum, payment) => {
     return sum + (payment.status === 'success' ? payment.amount / 100 : 0);
   }, 0);
-  
-  // Calculate remaining balance
+
   const totalAmount = booking.pricing.estimate + booking.pricing.overnightSurcharge;
   const remainingBalance = totalAmount - totalPaid;
-  
-  // Format payments for response (convert amount from kobo to Naira)
+
   const formattedPayments = booking.payment.map(payment => ({
     ...payment.toObject(),
-    amount: payment.amount / 100 // Convert to Naira for display
+    amount: payment.amount / 100
   }));
-  
+
   res.status(200).json({
     success: true,
     bookingId: booking._id,
@@ -402,52 +389,46 @@ export const getBookingPaymentDetails = asyncHandler(async (req, res) => {
 export const updateBooking = asyncHandler(async (req, res) => {
   const session = await Booking.startSession();
   session.startTransaction();
-  
+
   try {
     const { id } = req.params;
     const { client, event, pricing, notes } = req.body;
-    
+
     const booking = await Booking.findById(id).session(session);
     if (!booking) {
       await session.abortTransaction();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Booking not found' 
+        message: 'Booking not found'
       });
     }
-    
-    // Check if event date is changing
+
     let dateChanged = false;
     if (event && event.date && moment(event.date).format('YYYY-MM-DD') !== moment(booking.event.date).format('YYYY-MM-DD')) {
       dateChanged = true;
-      
-      // Check if new date is in the future
       if (moment(event.date).isBefore(moment().startOf('day'))) {
         await session.abortTransaction();
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: 'Event date must be in the future' 
+          message: 'Event date must be in the future'
         });
       }
     }
-    
-    // Check if time is changing
+
     let timeChanged = false;
     if (event && (event.startTime !== booking.event.startTime || event.endTime !== booking.event.endTime)) {
       timeChanged = true;
     }
-    
-    // If date or time is changing, check availability
+
     if (dateChanged || timeChanged) {
       const newDate = dateChanged ? moment(event.date).startOf('day').toDate() : booking.event.date;
       const newStartTime = event?.startTime || booking.event.startTime;
       const newEndTime = event?.endTime || booking.event.endTime;
-      
-      // Check for overlapping bookings
+
       const existingBooking = await Booking.findOne({
         'event.date': newDate,
         'status': { $ne: 'cancelled' },
-        '_id': { $ne: id }, // Exclude current booking
+        '_id': { $ne: id },
         $or: [
           {
             $and: [
@@ -469,38 +450,35 @@ export const updateBooking = asyncHandler(async (req, res) => {
           }
         ]
       }).session(session);
-      
+
       if (existingBooking) {
         await session.abortTransaction();
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: 'Time slot conflicts with existing booking' 
+          message: 'Time slot conflicts with existing booking'
         });
       }
-      
-      // If date changed, update availability
+
       if (dateChanged) {
-        // Free up old slot
         const oldAvailability = await Availability.findOne({
           date: booking.event.date
         }).session(session);
-        
+
         if (oldAvailability) {
           const slotIndex = oldAvailability.slots.findIndex(
             slot => slot.start === booking.event.startTime && slot.end === booking.event.endTime
           );
-          
+
           if (slotIndex !== -1) {
             oldAvailability.slots[slotIndex].status = 'available';
             await oldAvailability.save({ session });
           }
         }
-        
-        // Book new slot
+
         let newAvailability = await Availability.findOne({
           date: newDate
         }).session(session);
-        
+
         if (!newAvailability) {
           newAvailability = new Availability({
             date: newDate,
@@ -508,11 +486,11 @@ export const updateBooking = asyncHandler(async (req, res) => {
             slots: []
           });
         }
-        
+
         const newSlotExists = newAvailability.slots.some(
           slot => slot.start === newStartTime && slot.end === newEndTime
         );
-        
+
         if (!newSlotExists) {
           newAvailability.slots.push({
             start: newStartTime,
@@ -525,29 +503,26 @@ export const updateBooking = asyncHandler(async (req, res) => {
           );
           newAvailability.slots[slotIndex].status = 'booked';
         }
-        
+
         await newAvailability.save({ session });
       } else if (timeChanged) {
-        // Only time changed, update availability
         const availability = await Availability.findOne({
           date: booking.event.date
         }).session(session);
-        
+
         if (availability) {
-          // Free up old slot
           const oldSlotIndex = availability.slots.findIndex(
             slot => slot.start === booking.event.startTime && slot.end === booking.event.endTime
           );
-          
+
           if (oldSlotIndex !== -1) {
             availability.slots[oldSlotIndex].status = 'available';
           }
-          
-          // Book new slot
+
           const newSlotExists = availability.slots.some(
             slot => slot.start === newStartTime && slot.end === newEndTime
           );
-          
+
           if (!newSlotExists) {
             availability.slots.push({
               start: newStartTime,
@@ -560,19 +535,18 @@ export const updateBooking = asyncHandler(async (req, res) => {
             );
             availability.slots[slotIndex].status = 'booked';
           }
-          
+
           await availability.save({ session });
         }
       }
     }
-    
-    // Update booking details
+
     if (client) {
       if (client.fullName) booking.client.fullName = client.fullName;
       if (client.email) booking.client.email = client.email;
       if (client.phone) booking.client.phone = client.phone;
     }
-    
+
     if (event) {
       if (event.type) booking.event.type = event.type;
       if (event.title) booking.event.title = event.title;
@@ -583,7 +557,7 @@ export const updateBooking = asyncHandler(async (req, res) => {
       if (event.consultationMode) booking.event.consultationMode = event.consultationMode;
       if (event.notes !== undefined) booking.event.notes = event.notes;
     }
-    
+
     if (pricing) {
       if (pricing.estimate !== undefined) booking.pricing.estimate = pricing.estimate;
       if (pricing.overnightSurcharge !== undefined) booking.pricing.overnightSurcharge = pricing.overnightSurcharge;
@@ -591,21 +565,19 @@ export const updateBooking = asyncHandler(async (req, res) => {
       if (pricing.currency) booking.pricing.currency = pricing.currency;
       if (pricing.finalAgreed !== undefined) booking.pricing.finalAgreed = pricing.finalAgreed;
     }
-    
+
     if (notes !== undefined) booking.notes = notes;
-    
-    // Set metadata for status history
+
     booking._changedBy = req.user._id;
     booking._statusChangeNote = 'Booking details updated';
-    
+
     await booking.save({ session });
-    
-    // Commit transaction
+
     await session.commitTransaction();
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
-      message: 'Booking updated successfully', 
+      message: 'Booking updated successfully',
       booking: {
         ...booking.toObject(),
         event: {
@@ -617,10 +589,10 @@ export const updateBooking = asyncHandler(async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error updating booking:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   } finally {
     session.endSession();
@@ -631,56 +603,53 @@ export const updateBooking = asyncHandler(async (req, res) => {
 export const cancelBooking = asyncHandler(async (req, res) => {
   const session = await Booking.startSession();
   session.startTransaction();
-  
+
   try {
     const { id } = req.params;
     const { reason } = req.body;
-    
+
     if (!reason) {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Cancellation reason is required' 
+        message: 'Cancellation reason is required'
       });
     }
-    
+
     const booking = await Booking.findById(id).session(session);
     if (!booking) {
       await session.abortTransaction();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Booking not found' 
+        message: 'Booking not found'
       });
     }
-    
+
     if (booking.status === 'cancelled') {
       await session.abortTransaction();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Booking is already cancelled' 
+        message: 'Booking is already cancelled'
       });
     }
-    
-    // Free up availability slot
+
     const availability = await Availability.findOne({
       date: booking.event.date
     }).session(session);
-    
+
     if (availability) {
       const slotIndex = availability.slots.findIndex(
         slot => slot.start === booking.event.startTime && slot.end === booking.event.endTime
       );
-      
+
       if (slotIndex !== -1) {
         availability.slots[slotIndex].status = 'available';
         await availability.save({ session });
       }
     }
-    
-    // Cancel booking
+
     await booking.cancel(reason, req.user._id);
-    
-    // Prepare email data
+
     const emailData = {
       clientName: booking.client.fullName,
       eventType: booking.event.type,
@@ -691,33 +660,30 @@ export const cancelBooking = asyncHandler(async (req, res) => {
       whatsappUrl: `https://wa.me/${process.env.WHATSAPP_NUMBER || '2348012345678'}`,
       baseUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
     };
-    
-    // Send cancellation email
+
     const mailOptions = {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: booking.client.email,
       subject: 'Party Pallet Booking Cancellation',
       html: getEmailTemplate('cancellation', emailData)
     };
-    
-    // Send email asynchronously
+
     sendEmails([mailOptions]);
-    
-    // Commit transaction
+
     await session.commitTransaction();
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
-      message: 'Booking cancelled successfully', 
-      booking 
+      message: 'Booking cancelled successfully',
+      booking
     });
   } catch (error) {
     await session.abortTransaction();
     console.error('Error cancelling booking:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   } finally {
     session.endSession();
